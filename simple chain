@@ -1,0 +1,261 @@
+
+const SHA256 = require('crypto-js/sha256');
+const level = require('level');
+const chainDB2 = './chaindata3';
+
+const delay = ms => new Promise(res => setTimeout(res, ms));
+// const LevelSandboxClass = require('./levelSandbox.js');
+// const LevelSandboxClass = require('./ProjLevelSandBox.js');
+
+// Creating the levelSandbox class object
+// const Ldb = new LevelSandboxClass.LevelSandbox();
+
+
+
+class Block{
+   constructor(data){
+      this.hash = "",
+      this.height = 0,
+      this.body = data,
+      this.time = 0,
+      this.previousBlockHash = ""
+   }
+}
+
+class Blockchain{
+    constructor (){
+       this.db = level(chainDB2);
+       this.addGenesisBlock();
+        
+   }
+   
+       addBlock(newBlock){// input some value as addBlock("some data")
+       let self = this;
+       newBlock.time = new Date().getTime().toString().slice(0,-3);// time calculation
+       //  console.log(newBlock.hash)
+       delay(1000);                                          
+       console.log("delay for 1 second");
+       newBlock.height= this.getBlockHeight();                       // height = count
+       console.log(newBlock.height)
+       console.log(newBlock.height) //added
+       let obj= this.getBlock(newBlock.height-1);                    //getBlock(count-1)--> object form (value of the given key)
+      newBlock.previousBlockHash=obj.hash;                          
+      console.log("The id for your next object is:",newBlock.height);
+      console.log("Previous Block Hash ###",newBlock.previousBlockHash);
+      newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();// hash calculation
+      this.addDataToLevelDB(newBlock.height, JSON.stringify(newBlock))
+      //  console.log("---------------------------------------------------------")
+      //  console.log(newBlock)
+      //  console.log("---------------------------------------------------------")
+      .then((result) => {
+         if(!result) {
+            console.log("Error Adding data");
+      }else { console.log("RESULT ",result);}
+      })
+      .catch((err) => { console.log(err); 
+      });
+   }
+
+
+
+    getBlock(blockHeight){
+      return ( this.getBlockFromLevelDB(blockHeight));   //BlockHeight act as a key and value with respect to the key will be given as output
+   }
+
+
+
+   getBlockFromLevelDB( key ) {                            //gives the value from (Key, value )pair
+      let self = this;
+      return new Promise((resolve, reject) => {
+         self.db.get( key, (error, value) =>{
+            if (error){
+               reject(error)
+            }
+            resolve(value)
+         })
+      })
+   }
+
+
+
+     addGenesisBlock() {
+      let self = this;
+      this.getBlockHeight().then(count => {
+         console.log(count+" helo <<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>")
+         if(count >0){
+            console.log("chain does not need genesis Block ...!!!! ", count);
+         }
+            else{
+               console.log("ADDING GenesisBlock");
+               //return new Promise(function(resolve, reject) {
+                  let newBlock = new Block("Genesis block");
+   
+                  newBlock.time=new Date().getTime().toString().slice(0,-3);
+                  // Set Hash Value
+                  newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
+                  newBlock.previousBlockHash=0;
+                  console.log("Genesis Block Preparation done");
+                  console.log(JSON.stringify(newBlock))  //added
+                  // Add Genesis Block to LevelDB
+                           
+                  self.db.put(0, JSON.stringify(newBlock), function(err) {
+                    
+                     if (err) {
+                        return console.log('Block ' + key + ' submission failed', err);
+               reject(err);
+            } else{
+                     // retrieve and check if Genesis Block Inserted
+                     // this.db.get(0,function (error, value ){                // added
+                     //    console.log(value)
+                     // })
+                     
+                     self.db.get(0).then(function(result) {
+                           console.log('Check by fetching value after inserting in Genesis Block= ' + result);
+                           //resolve(value);
+                        })
+                     }
+                  });
+               }
+      }).catch(error => console.log('some error occurred: ERR: ', error));
+
+         }
+         
+      getBlockHeight() {                                 // output (count)
+         return this.getBlockHeightFromDB();
+      }
+
+
+
+    getBlockHeightFromDB() {                                 //output (count)
+      let self = this;
+      // console.log("------getBlocksCount() ");//com
+      return new Promise(function(resolve, reject) {
+         // let self = this
+         let count = 0;
+            self.db.createReadStream().on('data', function(data) {
+               // console.log("counts before ading one : ",count);
+               count++;
+               // console.log("counts are : ",count);
+            })
+            .on('error', function(err) {
+               reject(err);
+            })
+            .on('close', function() {
+               resolve(count);
+               console.log("sending count from getBlocksCount(--count value--) : ",count);
+            })
+         });
+      }
+      
+    addDataToLevelDB(key, value) {                               // store value in level database
+      let self = this;
+      console.log("---------inside addLevelDBData Function ");
+      // console.log("Key val: " + key + " " + value);
+      return new Promise(function(resolve, reject) {
+         self.db.put(key, value, function(err) {
+            if (err) {
+               console.log('Block ' + key + ' submission failed', err);
+               reject(err);
+            }
+            resolve(value);
+         });
+      });
+   }
+
+
+
+
+
+   getBlockDetails(i){
+      let self = this;
+      //return new Promise(function(resolve, reject) {
+         self.db.get(i).then(function(result) {
+            // let obj = JSON.parse(result)
+         //console.log("Block : ",i);
+         console.log("Block details : ", result);
+         if (err) {
+            console.log("Error is getBlockDetails(i) Function ", err);
+               //reject(err);
+            } return result;
+            //resolve(result);
+            // });
+         });
+   }
+
+
+
+
+    validateBlock(i) {
+      let self = this;
+      // get block
+      self.db.get(i).then(function(result) {
+         let obj = JSON.parse(result)
+         let blockHash=obj.hash;
+         // remove block hash to test block integrity
+         obj.hash = '';
+         //console.log("obj.hash : " ,obj.hash );
+         // generate block hash
+         let validBlockHash = SHA256(JSON.stringify(obj)).toString();
+         console.log("validBlockHash : ",validBlockHash);
+         // Compare
+         if (blockHash===validBlockHash) {
+            console.log("Block no "+i+" is valid");
+            return true;
+         } else {
+            console.log('Block #'+i+' invalid hash:\n'+blockHash+'<>'+validBlockHash);
+            return false;
+         }
+      })
+   }
+
+
+
+     validateChain(){
+      let errorLog = [];
+      //let previousHash = '';
+      let isBlockValid = false;
+      const height =  this.getBlockHeightFromDB()
+      console.log('blockHeight - ' + height);
+      for (var i =0; i < height-1; i++) {
+         if (!validateBlock(i))errorLog.push(i);
+         let curBlock = getBlock(i);
+         let nextBlock = getBlock(i+1);
+         let blockHash = curBlock.hash;
+         let previousHash = nextBlock.previousBlockHash;
+         if (blockHash!==previousHash) {
+            
+            errorLog.push(i)
+            console.log('Chain --Block #'+i+' invalid hash:\n'+previousHash+'<>'+block.previousBlockHash);
+         }
+      }
+      if (errorLog.length>0) {
+         console.log('Block errors = ' + errorLog.length);
+         console.log('Blocks: '+errorLog);
+      } else {
+         console.log('No errors detected');
+      }
+      
+      
+   }
+
+}
+
+
+// let newBlock = new Blockchain()
+// addGenesisBlock()
+
+(function theLoop (i) {
+   setTimeout(() => {
+      let myBlock = new Blockchain()
+      myBlock.addBlock(new Block("Second"));
+
+      if (--i) { 
+      theLoop(i)
+
+      }
+   }, 100);
+})(2);
+
+// validateChain()
+
+// getBlockDetails ()
